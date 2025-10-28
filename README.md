@@ -13,8 +13,8 @@ This is a Restaurant Management System built with Python and Tkinter.
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/your-repo.git
-cd your-repo
+git clone https://github.com/afham-haleema/rms.git
+cd rms
 ```
 
 2. **Install the libraries**
@@ -29,10 +29,10 @@ pip install tkinter
 3. **Connect to your mysql in .env**
 
 ```bash
-            DB_HOST=localhost
-            DB_USER=root
-            DB_PASSWORD=
-            DB_NAME=rms
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=rms
 ```
 
 4. **Run the app**
