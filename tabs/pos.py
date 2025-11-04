@@ -6,14 +6,14 @@ from PIL import Image, ImageTk
 from db_connection import create_connection
 from ui.theme import COLORS
 
-FALLBACK_IMAGE = "images/image.png"  # Use a default image if menu image is missing
+FALLBACK_IMAGE = "images/image.png"
 
 class PosTab(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.menu_items = []
         self.image_cache = {}
-        self.cart = {}  # {menu_id: {'name':..., 'price':..., 'qty':...}}
+        self.cart = {}  # {menu_id: {'name':..., 'price':..., 'qty':..., 'menu_id':...}}
 
         # ===== Top Cart Button + Search =====
         top_frame = tk.Frame(self, bg=COLORS["bg"])
@@ -44,21 +44,25 @@ class PosTab(tk.Frame):
         self.load_menu_from_db()
         self.populate_menu()
 
-    # --- Load menu items from DB ---
     def load_menu_from_db(self):
-        conn = create_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT menu_id, name, image, price, category, status FROM menu ORDER BY category, name")
-        self.menu_items = cursor.fetchall()
-        conn.close()
+        """Load menu items from database"""
+        try:
+            conn = create_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT menu_id, name, image, price, category, status FROM menu ORDER BY category, name")
+            self.menu_items = cursor.fetchall()
+            conn.close()
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Failed to load menu: {str(e)}")
+            self.menu_items = []
 
-    # --- Update cart button count ---
     def update_cart_btn(self):
+        """Update cart button count"""
         count = sum(item['qty'] for item in self.cart.values())
         self.cart_btn.config(text=f"🛒 Cart ({count})")
 
-    # --- Populate menu area ---
     def populate_menu(self):
+        """Populate menu area with items"""
         for widget in self.menu_frame.winfo_children():
             widget.destroy()
 
@@ -74,7 +78,7 @@ class PosTab(tk.Frame):
             card = tk.Frame(self.menu_frame, bg=COLORS["card"], bd=1, relief="raised", padx=10, pady=10)
             card.pack(fill="x", pady=5, padx=20)
 
-            # Load image from local path
+            # Load image
             if image_path not in self.image_cache:
                 img_path = image_path if os.path.exists(image_path) else FALLBACK_IMAGE
                 try:
@@ -109,10 +113,11 @@ class PosTab(tk.Frame):
 
             # Add to Cart button
             if status.lower() == "available":
-                ttk.Button(card, text="Add to Cart", command=lambda mid=menu_id: self.add_to_cart(mid)).pack(side="right", padx=5)
+                ttk.Button(card, text="Add to Cart", 
+                          command=lambda mid=menu_id: self.add_to_cart(mid)).pack(side="right", padx=5)
 
-    # --- Add item to cart ---
     def add_to_cart(self, menu_id):
+        """Add item to cart"""
         item = next((i for i in self.menu_items if i[0]==menu_id), None)
         if not item:
             return
@@ -120,12 +125,12 @@ class PosTab(tk.Frame):
         if menu_id in self.cart:
             self.cart[menu_id]['qty'] += 1
         else:
-            self.cart[menu_id] = {'name': name, 'price': price, 'qty': 1}
+            self.cart[menu_id] = {'name': name, 'price': price, 'qty': 1, 'menu_id': menu_id}
 
         self.update_cart_btn()
 
-
     def show_cart(self):
+        """Show cart window"""
         if not self.cart:
             messagebox.showinfo("Cart", "Cart is empty!")
             return
@@ -143,9 +148,9 @@ class PosTab(tk.Frame):
         def update_total():
             total = sum(v['price']*v['qty'] for v in self.cart.values())
             total_var.set(total)
-            self.update_cart_btn()  # update main cart button count
+            self.update_cart_btn()
 
-        # Display cart items (same as before)
+        # Display cart items
         for menu_id, info in list(self.cart.items()):
             frame = tk.Frame(items_frame, bg=COLORS["card"])
             frame.pack(fill="x", pady=5)
@@ -177,7 +182,7 @@ class PosTab(tk.Frame):
         tk.Label(win, textvariable=total_var, bg=COLORS["card"], font=("Arial",12,'bold')).pack(anchor="w", padx=10)
         update_total()
 
-        # ===== Customer Info Fields =====
+        # Customer Info Fields
         cust_frame = tk.Frame(win, bg=COLORS["card"])
         cust_frame.pack(fill="x", pady=10, padx=10)
 
@@ -205,8 +210,8 @@ class PosTab(tk.Frame):
             command=lambda: self.pay_by_cash(win, customer_name_var.get(), customer_phone_var.get(), list(self.cart.values()))
         ).pack(side="left", padx=5)
 
-    # --- Card Payment ---
     def pay_by_card(self, cart_window, cust_name, cust_phone, cart_items):
+        """Process card payment"""
         if not cart_items:
             messagebox.showerror("Error", "Cart is empty!")
             return
@@ -220,100 +225,108 @@ class PosTab(tk.Frame):
         conn = create_connection()
         cursor = conn.cursor()
 
-        # Create customer
-        cursor.execute("INSERT INTO customer (customer_name, phone) VALUES (%s, %s)", (cust_name, cust_phone))
-        customer_id = cursor.lastrowid
+        try:
+            # Create customer
+            cursor.execute("INSERT INTO customer (customer_name, phone) VALUES (%s, %s)", (cust_name, cust_phone))
+            customer_id = cursor.lastrowid
 
-        # Create order
-        cursor.execute("INSERT INTO orders (customer_id, total_price, order_date) VALUES (%s, %s, %s)",
-                    (customer_id, total_price, datetime.now()))
-        order_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
+            # Create order with kitchen_status
+            cursor.execute("INSERT INTO orders (customer_id, total_price, order_date, kitchen_status) VALUES (%s, %s, %s, %s)",
+                        (customer_id, total_price, datetime.now(), "Received"))
+            order_id = cursor.lastrowid
 
-        # Clear cart
-        self.cart.clear()
-        self.update_cart_btn()
+            # Insert order items
+            for item in cart_items:
+                cursor.execute("INSERT INTO order_items (order_id, menu_id, qty, price) VALUES (%s, %s, %s, %s)",
+                            (order_id, item['menu_id'], item['qty'], item['price']))
 
-        # Card Payment Window
-        win = tk.Toplevel()
-        win.title("Card Payment")
-        win.geometry("400x550")
-        win.configure(bg="#f0f0f0")
-
-        tk.Label(win, text="Card Number:").pack(pady=5, anchor="w", padx=10)
-        card_number_var = tk.StringVar()
-        ttk.Entry(win, textvariable=card_number_var).pack(fill="x", padx=10)
-
-        tk.Label(win, text="Cardholder Name:").pack(pady=5, anchor="w", padx=10)
-        card_name_var = tk.StringVar()
-        ttk.Entry(win, textvariable=card_name_var).pack(fill="x", padx=10)
-
-        tk.Label(win, text="Security Code:").pack(pady=5, anchor="w", padx=10)
-        cvv_var = tk.StringVar()
-        ttk.Entry(win, textvariable=cvv_var).pack(fill="x", padx=10)
-
-        tk.Label(win, text="Expiry Date (MM/YY):").pack(pady=5, anchor="w", padx=10)
-        expiry_var = tk.StringVar()
-        ttk.Entry(win, textvariable=expiry_var).pack(fill="x", padx=10)
-
-        tk.Label(win, text="Employee ID:").pack(pady=5, anchor="w", padx=10)
-        emp_id_var = tk.IntVar()
-        ttk.Entry(win, textvariable=emp_id_var).pack(fill="x", padx=10)
-
-        tk.Label(win, text=f"Amount to Pay: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(pady=10)
-
-        def process_payment():
-            if not all([card_number_var.get(), card_name_var.get(), cvv_var.get(), expiry_var.get(), emp_id_var.get()]):
-                messagebox.showerror("Error", "Please fill all fields!")
-                return
-
-            # Fetch employee name from employee ID
-            conn = create_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM employees WHERE employee_id = %s", (emp_id_var.get(),))
-            result = cursor.fetchone()
-            if not result:
-                messagebox.showerror("Error", "Employee ID not found!")
-                conn.close()
-                return
-            emp_name = result[0]
-
-            # Insert into bill
-            cursor.execute("""
-                INSERT INTO bill (customer_id, order_id, bill_date, payment_method, bill_amount, employee_id, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (customer_id, order_id, datetime.now(), "Card", total_price, emp_id_var.get(), "Paid"))
-            bill_id = cursor.lastrowid
             conn.commit()
+            
+            # Clear cart
+            self.cart.clear()
+            self.update_cart_btn()
+
+            # Card Payment Window
+            win = tk.Toplevel()
+            win.title("Card Payment")
+            win.geometry("400x550")
+            win.configure(bg="#f0f0f0")
+
+            tk.Label(win, text="Card Number:").pack(pady=5, anchor="w", padx=10)
+            card_number_var = tk.StringVar()
+            ttk.Entry(win, textvariable=card_number_var).pack(fill="x", padx=10)
+
+            tk.Label(win, text="Cardholder Name:").pack(pady=5, anchor="w", padx=10)
+            card_name_var = tk.StringVar()
+            ttk.Entry(win, textvariable=card_name_var).pack(fill="x", padx=10)
+
+            tk.Label(win, text="Security Code:").pack(pady=5, anchor="w", padx=10)
+            cvv_var = tk.StringVar()
+            ttk.Entry(win, textvariable=cvv_var).pack(fill="x", padx=10)
+
+            tk.Label(win, text="Expiry Date (MM/YY):").pack(pady=5, anchor="w", padx=10)
+            expiry_var = tk.StringVar()
+            ttk.Entry(win, textvariable=expiry_var).pack(fill="x", padx=10)
+
+            tk.Label(win, text="Employee ID:").pack(pady=5, anchor="w", padx=10)
+            emp_id_var = tk.IntVar()
+            ttk.Entry(win, textvariable=emp_id_var).pack(fill="x", padx=10)
+
+            tk.Label(win, text=f"Amount to Pay: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(pady=10)
+
+            def process_payment():
+                if not all([card_number_var.get(), card_name_var.get(), cvv_var.get(), expiry_var.get(), emp_id_var.get()]):
+                    messagebox.showerror("Error", "Please fill all fields!")
+                    return
+
+                # Fetch employee name from employee ID
+                cursor.execute("SELECT name FROM employees WHERE employee_id = %s", (emp_id_var.get(),))
+                result = cursor.fetchone()
+                if not result:
+                    messagebox.showerror("Error", "Employee ID not found!")
+                    return
+                emp_name = result[0]
+
+                # Insert into bill
+                cursor.execute("""
+                    INSERT INTO bill (customer_id, order_id, bill_date, payment_method, bill_amount, employee_id, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (customer_id, order_id, datetime.now(), "Card", total_price, emp_id_var.get(), "Paid"))
+                bill_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+
+                # Display Bill
+                for widget in win.winfo_children():
+                    widget.destroy()
+
+                tk.Label(win, text="*** BILL RECEIPT ***", font=("Arial", 14, "bold")).pack(pady=5)
+                tk.Label(win, text=f"Bill ID: {bill_id}").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Customer: {cust_name}").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Employee: {emp_name} (ID: {emp_id_var.get()})").pack(anchor="w", padx=10)
+                tk.Label(win, text="-----------------------------------").pack(pady=5)
+
+                for item in cart_items:
+                    item_total = item['qty'] * item['price']
+                    tk.Label(win, text=f"{item['name']} x {item['qty']} @ BHD {item['price']:.2f} = BHD {item_total:.2f}").pack(anchor="w", padx=10)
+
+                tk.Label(win, text="-----------------------------------").pack(pady=5)
+                tk.Label(win, text=f"Total Amount: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Payment Method: Card").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Order #{order_id} sent to kitchen! ✅", font=("Arial", 10, "bold"), fg="green").pack(anchor="w", padx=10)
+
+                tk.Button(win, text="Close", command=win.destroy).pack(pady=10)
+
+            ttk.Button(win, text="Pay", command=process_payment).pack(pady=15)
+
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Failed to create order: {str(e)}")
+            conn.rollback()
             conn.close()
 
-            # Display Bill
-            for widget in win.winfo_children():
-                widget.destroy()
-
-            tk.Label(win, text="*** BILL RECEIPT ***", font=("Arial", 14, "bold")).pack(pady=5)
-            tk.Label(win, text=f"Bill ID: {bill_id}").pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Customer: {cust_name}").pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Employee: {emp_name} (ID: {emp_id_var.get()})").pack(anchor="w", padx=10)
-            tk.Label(win, text="-----------------------------------").pack(pady=5)
-
-            for item in cart_items:
-                item_total = item['qty'] * item['price']
-                tk.Label(win, text=f"{item['name']} x {item['qty']} @ BHD {item['price']:.2f} = BHD {item_total:.2f}").pack(anchor="w", padx=10)
-
-            tk.Label(win, text="-----------------------------------").pack(pady=5)
-            tk.Label(win, text=f"Total Amount: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Payment Method: Card").pack(anchor="w", padx=10)
-
-            tk.Button(win, text="Close", command=win.destroy).pack(pady=10)
-
-        ttk.Button(win, text="Pay", command=process_payment, bootstyle="primary").pack(pady=15)
-
-
-# --- Cash Payment ---
     def pay_by_cash(self, cart_window, cust_name, cust_phone, cart_items):
+        """Process cash payment"""
         if not cart_items:
             messagebox.showerror("Error", "Cart is empty!")
             return
@@ -327,77 +340,93 @@ class PosTab(tk.Frame):
         conn = create_connection()
         cursor = conn.cursor()
 
-        # Create customer
-        cursor.execute("INSERT INTO customer (customer_name, phone) VALUES (%s, %s)", (cust_name, cust_phone))
-        customer_id = cursor.lastrowid
+        try:
+            # Create customer
+            cursor.execute("INSERT INTO customer (customer_name, phone) VALUES (%s, %s)", (cust_name, cust_phone))
+            customer_id = cursor.lastrowid
 
-        # Create order
-        cursor.execute("INSERT INTO orders (customer_id, total_price, order_date) VALUES (%s, %s, %s)",
-                    (customer_id, total_price, datetime.now()))
-        order_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
+            # Create order with kitchen_status
+            cursor.execute("INSERT INTO orders (customer_id, total_price, order_date, kitchen_status) VALUES (%s, %s, %s, %s)",
+                        (customer_id, total_price, datetime.now(), "Received"))
+            order_id = cursor.lastrowid
 
-        # Clear cart
-        self.cart.clear()
-        self.update_cart_btn()
+            # Insert order items
+            for item in cart_items:
+                cursor.execute("INSERT INTO order_items (order_id, menu_id, qty, price) VALUES (%s, %s, %s, %s)",
+                            (order_id, item['menu_id'], item['qty'], item['price']))
 
-        # Cash Payment Window
-        win = tk.Toplevel()
-        win.title("Cash Payment")
-        win.geometry("350x350")
-        win.configure(bg="#f0f0f0")
-
-        tk.Label(win, text="Employee ID:").pack(pady=5, anchor="w", padx=10)
-        emp_id_var = tk.IntVar()
-        ttk.Entry(win, textvariable=emp_id_var).pack(fill="x", padx=10)
-
-        tk.Label(win, text=f"Amount to Pay: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(pady=10)
-
-        def payment_received():
-            if not emp_id_var.get():
-                messagebox.showerror("Error", "Please enter employee ID!")
-                return
-
-            # Fetch employee name from employee ID
-            conn = create_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM employees WHERE employee_id = %s", (emp_id_var.get(),))
-            result = cursor.fetchone()
-            if not result:
-                messagebox.showerror("Error", "Employee ID not found!")
-                conn.close()
-                return
-            emp_name = result[0]
-
-            # Insert bill
-            cursor.execute("""
-                INSERT INTO bill (customer_id, order_id, bill_date, payment_method, bill_amount, employee_id, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (customer_id, order_id, datetime.now(), "Cash", total_price, emp_id_var.get(), "Pending"))
-            bill_id = cursor.lastrowid
             conn.commit()
+            
+            # Clear cart
+            self.cart.clear()
+            self.update_cart_btn()
+
+            # Cash Payment Window
+            win = tk.Toplevel()
+            win.title("Cash Payment")
+            win.geometry("350x350")
+            win.configure(bg="#f0f0f0")
+
+            tk.Label(win, text="Employee ID:").pack(pady=5, anchor="w", padx=10)
+            emp_id_var = tk.IntVar()
+            ttk.Entry(win, textvariable=emp_id_var).pack(fill="x", padx=10)
+
+            tk.Label(win, text=f"Amount to Pay: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(pady=10)
+
+            def payment_received():
+                if not emp_id_var.get():
+                    messagebox.showerror("Error", "Please enter employee ID!")
+                    return
+
+                # Fetch employee name from employee ID
+                cursor.execute("SELECT name FROM employees WHERE employee_id = %s", (emp_id_var.get(),))
+                result = cursor.fetchone()
+                if not result:
+                    messagebox.showerror("Error", "Employee ID not found!")
+                    return
+                emp_name = result[0]
+
+                # Insert bill
+                cursor.execute("""
+                    INSERT INTO bill (customer_id, order_id, bill_date, payment_method, bill_amount, employee_id, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (customer_id, order_id, datetime.now(), "Cash", total_price, emp_id_var.get(), "Pending"))
+                bill_id = cursor.lastrowid
+                conn.commit()
+                conn.close()
+
+                # Display Bill
+                for widget in win.winfo_children():
+                    widget.destroy()
+
+                tk.Label(win, text="*** BILL RECEIPT ***", font=("Arial", 14, "bold")).pack(pady=5)
+                tk.Label(win, text=f"Bill ID: {bill_id}").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Customer: {cust_name}").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Employee: {emp_name} (ID: {emp_id_var.get()})").pack(anchor="w", padx=10)
+                tk.Label(win, text="-----------------------------------").pack(pady=5)
+
+                for item in cart_items:
+                    item_total = item['qty'] * item['price']
+                    tk.Label(win, text=f"{item['name']} x {item['qty']} @ BHD {item['price']:.2f} = BHD {item_total:.2f}").pack(anchor="w", padx=10)
+
+                tk.Label(win, text="-----------------------------------").pack(pady=5)
+                tk.Label(win, text=f"Total Amount: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Payment Method: Cash").pack(anchor="w", padx=10)
+                tk.Label(win, text=f"Order #{order_id} sent to kitchen! ✅", font=("Arial", 10, "bold"), fg="green").pack(anchor="w", padx=10)
+
+                tk.Button(win, text="Close", command=win.destroy).pack(pady=10)
+
+            ttk.Button(win, text="Payment Received", command=payment_received).pack(pady=15)
+
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Failed to create order: {str(e)}")
+            conn.rollback()
             conn.close()
 
-            # Display Bill
-            for widget in win.winfo_children():
-                widget.destroy()
-
-            tk.Label(win, text="*** BILL RECEIPT ***", font=("Arial", 14, "bold")).pack(pady=5)
-            tk.Label(win, text=f"Bill ID: {bill_id}").pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}").pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Customer: {cust_name}").pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Employee: {emp_name} (ID: {emp_id_var.get()})").pack(anchor="w", padx=10)
-            tk.Label(win, text="-----------------------------------").pack(pady=5)
-
-            for item in cart_items:
-                item_total = item['qty'] * item['price']
-                tk.Label(win, text=f"{item['name']} x {item['qty']} @ BHD {item['price']:.2f} = BHD {item_total:.2f}").pack(anchor="w", padx=10)
-
-            tk.Label(win, text="-----------------------------------").pack(pady=5)
-            tk.Label(win, text=f"Total Amount: BHD {total_price:.2f}", font=("Arial", 12, "bold")).pack(anchor="w", padx=10)
-            tk.Label(win, text=f"Payment Method: Cash").pack(anchor="w", padx=10)
-
-            tk.Button(win, text="Close", command=win.destroy).pack(pady=10)
-
-        ttk.Button(win, text="Payment Received", command=payment_received).pack(pady=15)
+# Make sure this is at the end of the file
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PosTab(root)
+    app.pack(fill="both", expand=True)
+    root.mainloop()
