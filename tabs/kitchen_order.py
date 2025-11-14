@@ -21,11 +21,7 @@ class KitchenTab(tk.Frame):
         header_frame.pack(fill="x", pady=(0, 10))
 
         tk.Label(header_frame, text="🍳 Kitchen Orders", font=("Arial", 18, "bold")).pack(side="left")
-        
-        # Refresh button
-        refresh_btn = tk.Button(header_frame, text="🔄 Refresh Orders", command=self.load_orders,
-                               font=("Arial", 10), bg="#2196F3", fg="white", padx=10, pady=5)
-        refresh_btn.pack(side="right")
+       
 
         # Status filter
         filter_frame = tk.Frame(main_container)
@@ -34,7 +30,7 @@ class KitchenTab(tk.Frame):
         tk.Label(filter_frame, text="Filter by Status:", font=("Arial", 10, "bold")).pack(side="left")
         
         self.status_var = tk.StringVar(value="All")
-        statuses = ["All", "Received", "Cooking", "Completed"]
+        statuses = ["All", "Received", "Cooking"]
         for status in statuses:
             tk.Radiobutton(filter_frame, text=status, variable=self.status_var, 
                           value=status, command=self.load_orders, font=("Arial", 9)).pack(side="left", padx=10)
@@ -167,11 +163,13 @@ class KitchenTab(tk.Frame):
                 no_orders_label.pack()
 
             if completed_orders:
-                self.display_orders(completed_orders, self.completed_orders_frame, True)
+                self.display_orders(completed_orders, self.completed_orders_frame, True)   
             else:
-                no_orders_label = tk.Label(self.completed_orders_frame, text="No completed orders", 
-                                          font=("Arial", 12), fg="gray", pady=20, bg="white")
-                no_orders_label.pack()
+                no_completed_label = tk.Label(self.completed_orders_frame, text="No completed orders", 
+                                            font=("Arial", 12), fg="gray", pady=20, bg="white")
+                no_completed_label.pack()
+
+           
 
         except Exception as e:
             messagebox.showerror("Database Error", f"Failed to load orders: {str(e)}")

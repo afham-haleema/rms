@@ -1,5 +1,6 @@
 import tkinter as tk
-from ttkbootstrap import ttk
+import ttkbootstrap as ttk
+from ttkbootstrap.constants import *
 from tabs.dashboard_tab import DashboardTab
 from tabs.bill import BillTab
 from tabs.kitchen_order import KitchenTab
@@ -13,6 +14,16 @@ class Tabsframe(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
+        
+        COLORS.update({
+            "bg": "#23170e",        # Dark brown background
+            "card": "#124035",      # Dark green for cards
+            "accent": "#124035",    # Dark green for buttons
+            "text_light": "#ebcd95",# Gold text
+            "text_dark": "#ebcd95", # Gold text
+            "border": "#333333"     # Dark gray border
+        })
+        
         apply_theme(self.parent)
         self.configure(bg=COLORS["bg"])
         
@@ -22,11 +33,11 @@ class Tabsframe(tk.Frame):
         
         self._setup_navbar()
         self._setup_content_area()
-        self.show_tab("Dashboard")  # Show default tab
+        self.show_tab("Dashboard")
 
     def _setup_navbar(self):
         """Setup the navigation bar with logo, tabs, and user info"""
-        self.navbar = tk.Frame(self, bg="white", height=120)
+        self.navbar = tk.Frame(self, bg=COLORS["bg"], height=120)
         self.navbar.pack(side="top", fill="x", padx=0, pady=(0, 5))
         
         self._setup_navbar_left()
@@ -35,7 +46,7 @@ class Tabsframe(tk.Frame):
 
     def _setup_navbar_left(self):
         """Setup left side of navbar (logo and title)"""
-        left_frame = tk.Frame(self.navbar, bg="white")
+        left_frame = tk.Frame(self.navbar, bg=COLORS["bg"])
         left_frame.pack(side="left", padx=20)
         
         # Logo
@@ -43,28 +54,28 @@ class Tabsframe(tk.Frame):
             left_frame, 
             text="🍴", 
             font=("Segoe UI Emoji", 18), 
-            bg="white"
+            bg=COLORS["bg"],
+            fg=COLORS["text_light"]
         ).pack(side="left")
         
         # Title
         tk.Label(
             left_frame, 
-            text="RestaurantOS", 
+            text="MOON ", 
             font=("Segoe UI", 14, "bold"), 
-            bg="white", 
-            fg=COLORS["accent"]
+            bg=COLORS["bg"], 
+            fg=COLORS["text_light"]
         ).pack(side="left", padx=(8, 0))
 
     def _setup_navbar_center(self):
         """Setup center of navbar (tab buttons)"""
-        center_frame = tk.Frame(self.navbar, bg="white")
+        center_frame = tk.Frame(self.navbar, bg=COLORS["bg"])
         center_frame.pack(side="left", padx=60)
 
-        # Define tabs in order of appearance
         self.tabs = {
             "Dashboard": DashboardTab,
             "Menu": MenuTab,
-            "POS": PosTab,  # Consistent capitalization
+            "POS": PosTab,
             "Kitchen": KitchenTab,
             "Reservation": ReservationTab,
             "Bill": BillTab,
@@ -76,7 +87,7 @@ class Tabsframe(tk.Frame):
             btn = ttk.Button(
                 center_frame,
                 text=name,
-                style="TabButton.TButton",
+                style="primary.TButton",
                 command=lambda n=name: self.show_tab(n)
             )
             btn.pack(side="left", padx=5)
@@ -84,14 +95,14 @@ class Tabsframe(tk.Frame):
 
     def _setup_navbar_right(self):
         """Setup right side of navbar (user info)"""
-        right_frame = tk.Frame(self.navbar, bg="white")
+        right_frame = tk.Frame(self.navbar, bg=COLORS["bg"])
         right_frame.pack(side="right", padx=20)
         
         tk.Label(
             right_frame, 
             text="Welcome", 
-            bg="white", 
-            fg=COLORS["accent"], 
+            bg=COLORS["bg"], 
+            fg=COLORS["text_light"], 
             font=("Segoe UI", 10, "bold")
         ).pack(side="left")
 
@@ -102,26 +113,19 @@ class Tabsframe(tk.Frame):
 
     def show_tab(self, tab_name):
         """Switch to the specified tab"""
-        # Validate tab exists
         if tab_name not in self.tabs:
             raise ValueError(f"Tab '{tab_name}' does not exist")
         
-        # Destroy current tab
         if self.current_tab:
             self.current_tab.destroy()
         
-        # Create and display new tab
         tab_class = self.tabs[tab_name]
         self.current_tab = tab_class(self.container)
         self.current_tab.pack(fill="both", expand=True)
         
-        # Update button styles
         self._update_button_styles(tab_name)
-        
-        # Update active tab reference
         self.active_tab = tab_name
         
-        # Optional: Call tab activation method if it exists
         if hasattr(self.current_tab, 'on_tab_activated'):
             self.current_tab.on_tab_activated()
 
@@ -129,14 +133,12 @@ class Tabsframe(tk.Frame):
         """Update the visual style of tab buttons to show active state"""
         for name, button in self.buttons.items():
             if name == active_tab_name:
-                button.configure(style="ActiveTab.TButton")
+                button.configure(style="success.TButton")
             else:
-                button.configure(style="TabButton.TButton")
+                button.configure(style="primary.TButton")
 
     def get_current_tab(self):
-        """Get the currently active tab instance"""
         return self.current_tab
 
     def get_active_tab_name(self):
-        """Get the name of the currently active tab"""
         return self.active_tab

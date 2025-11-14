@@ -12,7 +12,7 @@ class DatabaseConnection:
     
     def _load_environment(self):
         """Load and validate environment variables"""
-        load_dotenv()  # This line was missing the import
+        load_dotenv()
        
         required_vars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME']
         missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -33,7 +33,8 @@ class DatabaseConnection:
                 password=os.getenv("DB_PASSWORD"),
                 database=os.getenv("DB_NAME"),
                 port=int(os.getenv("DB_PORT", 3306)),
-                autocommit=True
+                autocommit=True,
+                connect_timeout=30  # Added timeout
             )
             
             if self.connection.is_connected():
@@ -78,6 +79,8 @@ class DatabaseConnection:
         except Error as e:
             print(f"❌ Query execution error: {e}")
             print(f"❌ Failed query: {query}")
+            if params:
+                print(f"❌ Query parameters: {params}")
             return None
         finally:
             if cursor:
@@ -110,6 +113,18 @@ class DatabaseConnection:
         except Error as e:
             print(f"❌ Error getting database info: {e}")
             return None
+
+    def test_connection(self):
+        """Test if connection is alive"""
+        try:
+            if self.connection and self.connection.is_connected():
+                cursor = self.connection.cursor()
+                cursor.execute("SELECT 1")
+                cursor.close()
+                return True
+            return False
+        except Error:
+            return False
 
 
 # Create a global database instance
@@ -158,6 +173,24 @@ if __name__ == "__main__":
     
     if initialize_database():
         print("\n✅ Database is ready for use!")
+        
+        # Test some queries
+        print("\n🧪 Testing queries...")
+        
+        # Test SELECT
+        result = db.execute_query("SELECT COUNT(*) as count FROM reservation")
+        if result:
+            print(f"✅ Reservations count: {result[0]['count']}")
+        
+        # Test INSERT (if needed)
+        # result = db.execute_query("INSERT INTO test ...")
+        
+        # Test connection status
+        if db.test_connection():
+            print("✅ Connection test passed")
+        else:
+            print("❌ Connection test failed")
+            
     else:
         print("\n❌ Database initialization failed!")
     
