@@ -34,7 +34,7 @@ class BillTab(tk.Frame):
                         rowheight=50,
                         fieldbackground="white")
         style.map("BillTreeview.Treeview",
-                background=[('selected', '#347083')])
+                background=[('selected', '#124035')])
 
         style.configure("BillTreeview.Treeview.Heading", font=("Arial", 10, "bold"))
 
