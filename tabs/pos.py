@@ -54,6 +54,27 @@ class PosTab(tk.Frame):
         self.load_menu_from_db()
         self.populate_menu()
 
+    def center_window(self, window):
+        """
+        Center any window on the screen
+        """
+        window.update_idletasks()
+        
+        # Get the screen dimensions
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        
+        # Get the window dimensions
+        window_width = window.winfo_width()
+        window_height = window.winfo_height()
+        
+        # Calculate the position
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
+        # Set the position
+        window.geometry(f"+{x}+{y}")
+
     def configure_styles(self):
         """Configure ttk styles to match our dark theme - EXACT SAME AS MENU TAB"""
         style = ttk.Style()
@@ -279,6 +300,7 @@ class PosTab(tk.Frame):
         win.title("Order Cart")
         win.geometry("500x600")
         win.configure(bg=BACKGROUND_COLOR)
+        self.center_window(win)  # CENTER THE CART WINDOW
 
         # Title - GOLDEN TEXT
         tk.Label(win, text="🛒 Shopping Cart", font=("Arial", 18, "bold"), 
@@ -415,6 +437,7 @@ class PosTab(tk.Frame):
             win.title("Card Payment")
             win.geometry("500x650")
             win.configure(bg=BACKGROUND_COLOR)
+            self.center_window(win)  # CENTER THE PAYMENT WINDOW
 
             # Title - GOLDEN TEXT
             tk.Label(win, text="💳 Card Payment", font=("Arial", 20, "bold"), 
@@ -494,6 +517,7 @@ class PosTab(tk.Frame):
                     widget.destroy()
 
                 win.configure(bg=BACKGROUND_COLOR)
+                self.center_window(win)  # CENTER THE RECEIPT WINDOW
                 
                 # Receipt content
                 tk.Label(win, text="🎉 PAYMENT SUCCESSFUL!", font=("Arial", 18, "bold"), 
@@ -581,6 +605,7 @@ class PosTab(tk.Frame):
             win.title("Cash Payment")
             win.geometry("400x400")
             win.configure(bg=BACKGROUND_COLOR)
+            self.center_window(win)  # CENTER THE PAYMENT WINDOW
 
             # Title - GOLDEN TEXT
             tk.Label(win, text="💵 Cash Payment", font=("Arial", 18, "bold"), 
@@ -625,6 +650,7 @@ class PosTab(tk.Frame):
                     widget.destroy()
 
                 win.configure(bg=BACKGROUND_COLOR)
+                self.center_window(win)  # CENTER THE RECEIPT WINDOW
                 
                 tk.Label(win, text="💰 CASH PAYMENT RECEIVED", font=("Arial", 16, "bold"), 
                         bg=BACKGROUND_COLOR, fg=TEXT_COLOR).pack(pady=10)

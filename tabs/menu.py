@@ -51,6 +51,27 @@ class MenuTab(tk.Frame):
         self.load_menu_from_db()
         self.populate_menu()
 
+    def center_window(self, window):
+        """
+        Center any window on the screen
+        """
+        window.update_idletasks()
+        
+        # Get the screen dimensions
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        
+        # Get the window dimensions
+        window_width = window.winfo_width()
+        window_height = window.winfo_height()
+        
+        # Calculate the position
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
+        # Set the position
+        window.geometry(f"+{x}+{y}")
+
     def configure_styles(self):
         """Configure ttk styles to match our dark theme"""
         style = ttk.Style()
@@ -157,6 +178,7 @@ class MenuTab(tk.Frame):
         win.title("Add Menu Item")
         win.geometry("500x550")
         win.configure(bg=CARD_BG)  # dialogs use card green for contrast
+        self.center_window(win)  # CENTER THE WINDOW
 
         # Fields
         tk.Label(win, text="Name:", bg=CARD_BG, fg=TEXT_COLOR).pack(anchor="w", padx=10, pady=(10, 0))
@@ -171,12 +193,23 @@ class MenuTab(tk.Frame):
         img_var = tk.StringVar()
         ttk.Entry(win, textvariable=img_var, style="Custom.TEntry").pack(fill="x", padx=10, pady=5)
 
-        # Upload button
+        # Upload button - FIXED to prevent minimizing
         def browse_file():
+            # Bring the parent window to front before opening file dialog
+            win.lift()
+            win.focus_force()
+            
             file_path = filedialog.askopenfilename(
-                filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif")])
+                parent=win,  # Set parent to keep dialog on top
+                title="Select Image File",
+                filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif")]
+            )
             if file_path:
                 img_var.set(file_path)
+                # Bring window back to front after file selection
+                win.lift()
+                win.focus_force()
+
         ttk.Button(win, text="Browse", command=browse_file, style="Custom.TButton").pack(pady=5)
 
         tk.Label(win, text="Category:", bg=CARD_BG, fg=TEXT_COLOR).pack(anchor="w", padx=10, pady=(10, 0))
@@ -231,6 +264,7 @@ class MenuTab(tk.Frame):
         win.title("Edit Menu Item")
         win.geometry("500x550")
         win.configure(bg=CARD_BG)
+        self.center_window(win)  # CENTER THE WINDOW
 
         # Fields
         tk.Label(win, text="Name:", bg=CARD_BG, fg=TEXT_COLOR).pack(anchor="w", padx=10, pady=(10, 0))
@@ -245,11 +279,23 @@ class MenuTab(tk.Frame):
         img_var = tk.StringVar(value=image_path)
         ttk.Entry(win, textvariable=img_var, style="Custom.TEntry").pack(fill="x", padx=10, pady=5)
 
+        # Upload button - FIXED to prevent minimizing
         def browse_file():
+            # Bring the parent window to front before opening file dialog
+            win.lift()
+            win.focus_force()
+            
             file_path = filedialog.askopenfilename(
-                filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif")])
+                parent=win,  # Set parent to keep dialog on top
+                title="Select Image File", 
+                filetypes=[("Image files", "*.png *.jpg *.jpeg *.gif")]
+            )
             if file_path:
                 img_var.set(file_path)
+                # Bring window back to front after file selection
+                win.lift()
+                win.focus_force()
+
         ttk.Button(win, text="Browse", command=browse_file, style="Custom.TButton").pack(pady=5)
 
         tk.Label(win, text="Category:", bg=CARD_BG, fg=TEXT_COLOR).pack(anchor="w", padx=10, pady=(10, 0))
